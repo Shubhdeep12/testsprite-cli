@@ -1185,7 +1185,7 @@ testsprite --output json test list --project <id> --fields items.id,items.name,i
 testsprite --output json test result <test-id> --fields status,verdict,failureKind,summary
 ```
 
-A field that matches nothing is reported once on stderr, with the keys available where the lookup stopped (`[fields] "nmae" matched nothing in this output (available: name, status, …)`), while stdout stays valid JSON. `--fields` only applies to `--output json`; in text mode it is rejected with exit **5** (use `--columns` to pick text table columns). Error envelopes are never trimmed.
+A field that matches nothing is reported once on stderr, with the keys available where the lookup stopped (`[warn] --fields "nmae" matched nothing in this output (available: name, status, …)`), while stdout stays valid JSON. `--fields` only applies to `--output json`; in text mode it is rejected with exit **5** (use `--columns` to pick text table columns). Error envelopes are never trimmed.
 
 ### Secrets in output
 

@@ -361,7 +361,11 @@ describe('projectFields', () => {
 
   it('keeps a whole subtree when a parent and a child path are both requested', () => {
     const data = { latest: { status: 'failed', runId: 'r1' } };
-    expect(projectFields(data, split('latest', 'latest.status')).value).toEqual(data);
+    const result = projectFields(data, split('latest', 'latest.status', 'latest.nope'));
+    expect(result.value).toEqual(data);
+    expect(result.unmatched).toEqual([
+      { path: 'latest.nope', at: 'latest', available: ['status', 'runId'] },
+    ]);
   });
 
   it('reports paths that matched nothing, but not ones that only met an empty list', () => {
@@ -426,7 +430,9 @@ describe('Output.print — --fields projection', () => {
     out.print({ name: 'x' });
     out.print({ name: 'y' });
     expect(stdout.map(line => JSON.parse(line) as unknown)).toEqual([{}, {}]);
-    expect(stderr).toEqual(['[fields] "nmae" matched nothing in this output (available: name)']);
+    expect(stderr).toEqual([
+      '[warn] --fields "nmae" matched nothing in this output (available: name)',
+    ]);
   });
 
   it('says where a nested field stopped matching', () => {
@@ -434,7 +440,7 @@ describe('Output.print — --fields projection', () => {
     const { out, stderr } = capture('json');
     out.print({ items: [{ id: 'a', name: 'A' }] });
     expect(stderr).toEqual([
-      '[fields] "items.nme" matched nothing in this output (available under items: id, name)',
+      '[warn] --fields "items.nme" matched nothing in this output (available under items: id, name)',
     ]);
   });
 

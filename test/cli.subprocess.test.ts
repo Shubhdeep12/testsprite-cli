@@ -636,7 +636,7 @@ describe('--fields trims --output json success output', () => {
     const result = await runCli(['--dry-run', '--output', 'json', '--fields', 'nmae', 'usage']);
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({});
-    expect(result.stderr).toContain('[fields] "nmae" matched nothing in this output');
+    expect(result.stderr).toContain('[warn] --fields "nmae" matched nothing in this output');
   }, 30_000);
 
   it('is rejected in text mode (exit 5) instead of being silently ignored', async () => {

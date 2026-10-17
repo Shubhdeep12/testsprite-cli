@@ -124,6 +124,9 @@ export function projectFields(
     for (const [key, item] of Object.entries(value)) {
       if (whole.has(key)) {
         kept.push([key, item]);
+        // The whole value is kept, but walk any child paths too so they are
+        // reported only when they really are missing.
+        if (nested.has(key)) pick(item, nested.get(key)!);
       } else if (nested.has(key)) {
         const inner = pick(item, nested.get(key)!);
         if (inner !== undefined) kept.push([key, inner]);
@@ -271,7 +274,7 @@ export class Output {
         if (warnedUnmatchedFields.has(field.path)) continue;
         warnedUnmatchedFields.add(field.path);
         this.stderrWrite(
-          `[fields] "${field.path}" matched nothing in this output${availableHint(field)}`,
+          `[warn] --fields "${field.path}" matched nothing in this output${availableHint(field)}`,
         );
       }
       this.stdoutWrite(JSON.stringify(value, null, 2));
