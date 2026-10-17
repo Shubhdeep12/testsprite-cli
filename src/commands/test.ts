@@ -1234,6 +1234,13 @@ interface CreateOptions extends CommonOptions {
  * and the server returns the runs the first attempt started. When that exceeds
  * the 256-character limit, the base is shortened and a digest of the full base
  * is kept, so long base keys that differ only in their tail stay distinct.
+ *
+ * A trigger routed through a tunnel names the tunnel's client id in its body,
+ * and the server refuses a reused key whose body changed
+ * (IDEMPOTENCY_BODY_MISMATCH). Callers therefore put that client id in the
+ * suffix: a retry through the same tunnel (one adopted with --tunnel-client)
+ * gets its runs back, and a retry through a new tunnel starts new runs, since
+ * the old ones cannot reach the app once their tunnel is gone.
  */
 export function deriveIdempotencyKey(base: string, suffix: string): string {
   const key = `${base}${suffix}`;
@@ -4399,8 +4406,15 @@ async function runBatchRun(
 
   async function triggerOne(testId: string): Promise<CliBatchRunResult> {
     // Derived from the create key, never the create key itself (that would
-    // replay the create response).
-    const runIdempotencyKey = deriveIdempotencyKey(opts.idempotencyKey, `:run:${testId}`);
+    // replay the create response), and scoped to the tunnel when routed
+    // through one (see deriveIdempotencyKey).
+    const tunnelScope = deps.environmentTunnel?.targets?.has(testId)
+      ? `:${deps.environmentTunnel.clientId}`
+      : '';
+    const runIdempotencyKey = deriveIdempotencyKey(
+      opts.idempotencyKey,
+      `:run${tunnelScope}:${testId}`,
+    );
     if (opts.debug) {
       stderrFn(`[batch-run] ${testId} idempotency-key: ${runIdempotencyKey}`);
     }
@@ -11270,8 +11284,10 @@ export async function runTestRunLocalBatch(
         const row = results[index]!;
         let triggerStartedAtMs: number;
         // Derived for every test, auto-minted base included, so a retry with
-        // the printed key re-sends the same keys.
-        const key = deriveIdempotencyKey(idempotencyBase, `:${row.testId}`);
+        // the printed key re-sends the same keys; scoped to the tunnel when
+        // routed through one (see deriveIdempotencyKey).
+        const tunnelScope = targets.has(row.testId) ? `:${liveSession.clientId}` : '';
+        const key = deriveIdempotencyKey(idempotencyBase, `${tunnelScope}:${row.testId}`);
         let response: TriggerRunResponse;
         try {
           if (shutdown.signal.aborted) throw shutdown.signal.reason;

@@ -1258,7 +1258,7 @@ describe('test run local batch', () => {
     expect(printed).toHaveLength(1);
     const base = printed[0]!.slice('idempotency-key: '.length);
     // Passing the printed key back with --idempotency-key reproduces these keys.
-    expect(keys).toEqual([`${base}:a`, `${base}:b`]);
+    expect(keys).toEqual([`${base}:${f.clientId}:a`, `${base}:${f.clientId}:b`]);
   });
 
   it('prints the text table without inventing a project dashboard link', async () => {
