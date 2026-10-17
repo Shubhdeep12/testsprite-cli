@@ -90,10 +90,12 @@ export function projectFields(
   const pick = (value: unknown, wanted: readonly Wanted[]): unknown => {
     if (Array.isArray(value)) {
       if (value.length === 0) for (const { index } of wanted) matched.add(index);
-      // Items that are not objects (e.g. a list of strings) have no keys to
-      // keep; dropping them avoids printing `[null, null]`.
-      const items = value.map(item => pick(item, wanted)).filter(item => item !== undefined);
-      return items.length === 0 && value.length > 0 ? undefined : items;
+      // An item with nothing to keep (e.g. a string in a list of objects)
+      // becomes null so the others keep their positions. A list where no item
+      // has anything to keep is omitted rather than printed as `[null, null]`.
+      const items = value.map(item => pick(item, wanted));
+      if (value.length > 0 && items.every(item => item === undefined)) return undefined;
+      return items.map(item => (item === undefined ? null : item));
     }
     if (!isPlainObject(value)) return undefined;
     const whole = new Set<string>();

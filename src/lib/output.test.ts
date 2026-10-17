@@ -387,7 +387,15 @@ describe('projectFields', () => {
     ]);
   });
 
-  it('drops list items that are not objects instead of printing nulls', () => {
+  it('keeps the position of list items that have nothing to keep', () => {
+    const data = { rows: [{ id: 1, x: 1 }, 'legacy-row', { id: 2, x: 2 }] };
+    expect(projectFields(data, split('rows.id'))).toEqual({
+      value: { rows: [{ id: 1 }, null, { id: 2 }] },
+      unmatched: [],
+    });
+  });
+
+  it('omits a list in which no item has anything to keep', () => {
     const result = projectFields({ tags: ['smoke', 'login'], id: 't1' }, split('tags.name', 'id'));
     expect(result.value).toEqual({ id: 't1' });
     expect(result.unmatched).toEqual([{ path: 'tags.name', at: '', available: [] }]);
