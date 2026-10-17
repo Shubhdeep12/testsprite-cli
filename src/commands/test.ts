@@ -29,7 +29,7 @@ import {
 } from 'node:fs';
 import { rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Command } from 'commander';
 import { openInBrowser } from '../lib/browser.js';
 import {
@@ -1226,6 +1226,21 @@ interface CreateOptions extends CommonOptions {
   targetUrl?: string;
   /** Skip the pre-charge --target-url reachability preflight (zero network calls). */
   skipPreflight?: boolean;
+}
+
+/**
+ * Derive the idempotency key for one request of a batch from the batch key:
+ * `<base><suffix>`, so a retry with the same base key re-sends the same keys
+ * and the server returns the runs the first attempt started. When that exceeds
+ * the 256-character limit, the base is shortened and a digest of the full base
+ * is kept, so long base keys that differ only in their tail stay distinct.
+ */
+export function deriveIdempotencyKey(base: string, suffix: string): string {
+  const key = `${base}${suffix}`;
+  if (key.length <= 256) return key;
+  const digest = createHash('sha256').update(base).digest('hex').slice(0, 16);
+  const room = Math.max(0, 256 - suffix.length - digest.length - 1);
+  return `${base.slice(0, room)}-${digest}${suffix}`.slice(-256);
 }
 
 /**
@@ -4169,7 +4184,7 @@ export async function runCreateBatch(
   if (opts.run === true) {
     await withCreatedReceipt(opts, deps, response, runDeps =>
       runBatchRun(
-        opts,
+        { ...opts, idempotencyKey },
         response,
         runDeps.environmentTunnel?.client ?? client,
         makeOutput(opts.output, runDeps),
@@ -4207,7 +4222,7 @@ export async function runCreateBatch(
  *     that code only when ALL runs share the same code; otherwise 1.
  */
 async function runBatchRun(
-  opts: CreateBatchOptions,
+  opts: CreateBatchOptions & { idempotencyKey: string },
   createResponse: CliCreateBatchResponse,
   client: HttpClient,
   out: Output,
@@ -4383,8 +4398,9 @@ async function runBatchRun(
   const pendingTriggers = new Set<Promise<unknown>>();
 
   async function triggerOne(testId: string): Promise<CliBatchRunResult> {
-    // Mint a fresh idempotency key per run — MUST NOT reuse the create key.
-    const runIdempotencyKey = `cli-batch-run-${randomUUID()}`;
+    // Derived from the create key, never the create key itself (that would
+    // replay the create response).
+    const runIdempotencyKey = deriveIdempotencyKey(opts.idempotencyKey, `:run:${testId}`);
     if (opts.debug) {
       stderrFn(`[batch-run] ${testId} idempotency-key: ${runIdempotencyKey}`);
     }
@@ -11253,12 +11269,9 @@ export async function runTestRunLocalBatch(
       const runOne = async (index: number) => {
         const row = results[index]!;
         let triggerStartedAtMs: number;
-        const suffix = `:${row.testId}`;
-        const key = opts.idempotencyKey
-          ? `${idempotencyBase.slice(0, Math.max(0, 256 - suffix.length))}${suffix}`.slice(-256)
-          : index === 0
-            ? idempotencyBase
-            : `cli-run-${randomUUID()}`;
+        // Derived for every test, auto-minted base included, so a retry with
+        // the printed key re-sends the same keys.
+        const key = deriveIdempotencyKey(idempotencyBase, `:${row.testId}`);
         let response: TriggerRunResponse;
         try {
           if (shutdown.signal.aborted) throw shutdown.signal.reason;
@@ -14078,7 +14091,7 @@ export function createTestCommand(deps: TestDeps = {}): Command {
     .option('--skip-preflight', SKIP_PREFLIGHT_HELP, false)
     .option(
       '--idempotency-key <token>',
-      'opaque idempotency token for the batch create (1-256 ASCII chars). Defaults to a UUIDv4 minted per invocation; pin one yourself for safe retries.',
+      'opaque idempotency token for the batch create (1-256 ASCII chars); with --run, each trigger key is derived from it. Defaults to a UUIDv4 minted per invocation; pin one yourself for safe retries.',
     )
     .addHelpText('after', GLOBAL_OPTS_HINT)
     .action(async (cmdOpts: CreateBatchFlagOpts, command: Command) => {

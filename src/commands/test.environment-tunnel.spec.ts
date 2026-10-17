@@ -1391,6 +1391,52 @@ describe('environment tunnel resolution', () => {
     expect(keys.every(key => key.length <= 256)).toBe(true);
   });
 
+  /** Record the idempotency key each `POST /tests/{id}/runs` carries, by test id. */
+  function captureTriggerKeys(f: ReturnType<typeof fixture>): Record<string, string> {
+    const keys: Record<string, string> = {};
+    const original = f.deps.fetchImpl;
+    f.deps.fetchImpl = vi.fn(async (input: Parameters<typeof fetch>[0], init: RequestInit = {}) => {
+      const trigger = /\/tests\/([^/]+)\/runs$/.exec(String(input));
+      if (trigger?.[1] && init.method === 'POST')
+        keys[trigger[1]] = new Headers(init.headers).get('idempotency-key')!;
+      return original(input, init);
+    });
+    return keys;
+  }
+
+  const threeTests = [
+    { id: 'a', type: 'frontend', projectId: 'P' },
+    { id: 'b', type: 'frontend', projectId: 'P' },
+    { id: 'c', type: 'frontend', projectId: 'P' },
+  ];
+
+  it('derives every trigger key of a several-id run from --idempotency-key and the test id', async () => {
+    const f = fixture({ tests: threeTests });
+    const keys = captureTriggerKeys(f);
+    await f.run('run', 'a', 'b', 'c', '--skip-preflight', '--idempotency-key', 'ci-build-42');
+    expect(keys).toEqual({ a: 'ci-build-42:a', b: 'ci-build-42:b', c: 'ci-build-42:c' });
+  });
+
+  it('re-sends the same trigger keys when a several-id run is retried with the printed key', async () => {
+    const first = fixture({ tests: threeTests });
+    const firstKeys = captureTriggerKeys(first);
+    await first.run('run', 'a', 'b', 'c', '--skip-preflight');
+    const printed = first.stderr
+      .find(line => line.startsWith('idempotency-key: '))
+      ?.slice('idempotency-key: '.length);
+    expect(printed).toMatch(/^cli-run-/);
+
+    const retry = fixture({ tests: threeTests });
+    const retryKeys = captureTriggerKeys(retry);
+    await retry.run('run', 'a', 'b', 'c', '--skip-preflight', '--idempotency-key', printed!);
+
+    // Identical keys let the server return the runs the first attempt started
+    // instead of starting (and billing) every test a second time.
+    expect(Object.keys(firstKeys)).toHaveLength(3);
+    expect(retryKeys).toEqual(firstKeys);
+    expect(new Set(Object.values(firstKeys)).size).toBe(3);
+  });
+
   it('keeps run receipts when an owned rerun is interrupted during deferred backoff', async () => {
     const interrupt = new InterruptError('SIGINT');
     const f = fixture({
