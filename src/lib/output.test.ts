@@ -401,6 +401,21 @@ describe('projectFields', () => {
     expect(result.unmatched).toEqual([{ path: 'tags.name', at: '', available: [] }]);
   });
 
+  it('keeps a null on the path as null instead of reporting the path', () => {
+    const data = { latestResult: null, items: [{ id: 1 }, null], id: 't1' };
+    expect(projectFields(data, split('latestResult.status', 'items.id', 'id'))).toEqual({
+      value: { latestResult: null, items: [{ id: 1 }, null], id: 't1' },
+      unmatched: [],
+    });
+  });
+
+  it('prints an empty list for a top-level list in which no item has anything to keep', () => {
+    expect(projectFields(['smoke', 'login'], split('id'))).toEqual({
+      value: [],
+      unmatched: [{ path: 'id', at: '', available: [] }],
+    });
+  });
+
   it('keeps a `__proto__` key as an ordinary field', () => {
     const data = JSON.parse('{"__proto__": {"polluted": true}, "id": "t1"}') as unknown;
     const { value } = projectFields(data, split('__proto__', 'id'));

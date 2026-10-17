@@ -1178,7 +1178,7 @@ These apply to every command:
 | `--debug`                     | Method / URL / request-id / latency / retry decisions to stderr (the API key is never included)    |
 | `--dry-run`                   | Preview without writes or charges; configured `test run` may read metadata for its tunnel decision |
 
-**Trimming JSON with `--fields`.** `--fields` keeps only the listed keys of a command's JSON result, so a script or coding agent reads just what it needs. Dot paths reach nested keys, and a path that passes through a list applies to every item in it; keys you don't list — including list cursors — are dropped:
+**Trimming JSON with `--fields`.** `--fields` keeps only the listed keys of a command's JSON result, so a script or coding agent reads just what it needs. Dot paths reach nested keys, and a path that passes through a list applies to every item in it; keys you don't list — including list cursors — are dropped, and a `null` along a path is kept as `null`:
 
 ```bash
 testsprite --output json test list --project <id> --fields items.id,items.name,items.status,nextToken

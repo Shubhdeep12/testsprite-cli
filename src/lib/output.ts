@@ -83,11 +83,15 @@ export function projectFields(
 ): { value: unknown; unmatched: UnmatchedField[] } {
   type Wanted = { index: number; rest: readonly string[] };
   // A path counts as matched once its last key is found anywhere — or when it
-  // runs into an empty list, which cannot show the path is wrong.
+  // runs into an empty list or a null, neither of which can show it is wrong.
   const matched = new Set<number>();
   // For a path not (yet) matched: the deepest object it reached, and its keys.
   const stoppedAt = new Map<number, { depth: number; keys: Set<string> }>();
   const pick = (value: unknown, wanted: readonly Wanted[]): unknown => {
+    if (value === null) {
+      for (const { index } of wanted) matched.add(index);
+      return null;
+    }
     if (Array.isArray(value)) {
       if (value.length === 0) for (const { index } of wanted) matched.add(index);
       // An item with nothing to keep (e.g. a string in a list of objects)
@@ -151,7 +155,9 @@ export function projectFields(
       },
     ];
   });
-  return { value: value === undefined ? data : value, unmatched };
+  // A list at the top level stays a list even when no item had anything to keep.
+  const projected = value === undefined && Array.isArray(data) ? [] : value;
+  return { value: projected === undefined ? data : projected, unmatched };
 }
 
 const MAX_HINTED_KEYS = 20;
