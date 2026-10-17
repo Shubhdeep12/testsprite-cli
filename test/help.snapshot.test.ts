@@ -80,6 +80,8 @@ const cases: Array<[string, string[]]> = [
   ['tunnel list', ['tunnel', 'list', '--help']],
   ['tunnel stop', ['tunnel', 'stop', '--help']],
   ['tunnel status', ['tunnel', 'status', '--help']],
+  // Raw API requests: locks the host-only and explicit-write-method wording.
+  ['api', ['api', '--help']],
 ];
 
 describe('--help snapshots', () => {

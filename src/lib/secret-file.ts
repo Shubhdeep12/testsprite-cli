@@ -17,7 +17,8 @@
  *
  * Callers pass the flag name so the envelope names the flag the user actually
  * typed — one helper serves `--password-file` today and the remaining
- * credential/auto-auth file flags once they are migrated.
+ * credential/auto-auth file flags once they are migrated. `api --input`
+ * reuses it for request bodies, passing an explicit size cap.
  *
  * The check (is this a regular file?) and the use (read its bytes) happen
  * against a single open file descriptor rather than against the path twice,
@@ -26,7 +27,7 @@
  */
 import { closeSync, constants, fstatSync, openSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import { localValidationError } from './errors.js';
+import { ApiError, localValidationError } from './errors.js';
 
 /**
  * Read a secret from `path`, surfacing every filesystem failure as a typed
@@ -39,10 +40,15 @@ import { localValidationError } from './errors.js';
  *
  * @param flag - Flag name without the leading dashes, e.g. `'password-file'`.
  * @param path - Path as supplied by the user; may be relative.
+ * @param options.maxBytes - Refuse a larger file before reading it.
  * @throws {ApiError} `VALIDATION_ERROR` when the path is missing, unreadable,
- *   or not a regular file.
+ *   or not a regular file; `PAYLOAD_TOO_LARGE` when it exceeds `maxBytes`.
  */
-export function readSecretFileGuarded(flag: string, path: string): string {
+export function readSecretFileGuarded(
+  flag: string,
+  path: string,
+  options: { maxBytes?: number } = {},
+): string {
   const absolute = isAbsolute(path) ? path : resolve(process.cwd(), path);
 
   let fd: number;
@@ -94,6 +100,17 @@ export function readSecretFileGuarded(flag: string, path: string): string {
 
     if (!stat.isFile()) {
       throw localValidationError(flag, `not a regular file: ${path}`);
+    }
+    if (options.maxBytes !== undefined && stat.size > options.maxBytes) {
+      throw ApiError.fromEnvelope({
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: `--${flag} file exceeds the ${options.maxBytes}-byte CLI cap (${stat.size} bytes).`,
+          nextAction: 'Use a smaller file.',
+          requestId: 'local',
+          details: { field: flag, sizeBytes: stat.size, maxBytes: options.maxBytes },
+        },
+      });
     }
 
     try {

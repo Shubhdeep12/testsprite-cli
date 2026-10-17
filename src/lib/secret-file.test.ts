@@ -81,6 +81,22 @@ describe('readSecretFileGuarded', () => {
     expect(readSecretFileGuarded('password-file', path)).toBe('');
   });
 
+  it('refuses a file over maxBytes with PAYLOAD_TOO_LARGE, and accepts one at the cap', () => {
+    const path = join(tmpRoot, 'body.json');
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test fixture write into this test's own mkdtempSync-created temp dir (tmpRoot), not user input.
+    writeFileSync(path, '{"a":1}');
+    expect(readSecretFileGuarded('input', path, { maxBytes: 7 })).toBe('{"a":1}');
+    try {
+      readSecretFileGuarded('input', path, { maxBytes: 6 });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).code).toBe('PAYLOAD_TOO_LARGE');
+      expect((err as ApiError).exitCode).toBe(5);
+      expect((err as ApiError).details).toEqual({ field: 'input', sizeBytes: 7, maxBytes: 6 });
+    }
+  });
+
   describe('missing file', () => {
     it('throws VALIDATION_ERROR with exit code 5', () => {
       const path = join(tmpRoot, 'nope.txt');

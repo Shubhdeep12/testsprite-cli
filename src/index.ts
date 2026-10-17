@@ -2,6 +2,7 @@
 
 import { Command, CommanderError } from 'commander';
 import { createAgentCommand } from './commands/agent.js';
+import { createApiCommand } from './commands/api.js';
 import { createAuthCommand } from './commands/auth.js';
 import { createCiCommand } from './commands/ci.js';
 import { createCompletionCommand, type CompletionSpec } from './commands/completion.js';
@@ -135,6 +136,7 @@ program.addCommand(createScheduleCommand({}));
 program.addCommand(createTunnelCommand({}));
 program.addCommand(createAgentCommand({}));
 program.addCommand(createUsageCommand());
+program.addCommand(createApiCommand());
 program.addCommand(createDoctorCommand());
 program.addCommand(createCompletionCommand(() => buildCompletionSpec()));
 

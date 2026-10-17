@@ -22,6 +22,7 @@ The full reference for the TestSprite CLI: install verification, manual setup, e
   - [Schedules (`schedule`)](#schedules-schedule)
   - [CI integration (`ci init`)](#ci-integration-ci-init)
   - [Account & diagnostics](#account--diagnostics)
+  - [Raw API requests (`api`)](#raw-api-requests-api)
 - [Configuration](#configuration)
 - [Output & scripting](#output--scripting)
 - [Continuous integration](#continuous-integration)
@@ -1156,6 +1157,27 @@ testsprite doctor && testsprite test run test_xxxxxxxx --wait
 ```
 
 Every check reuses the same helpers the real commands use, so the report reflects exactly what a subsequent command would resolve. For an org-scoped key, the report also lists `Organizations` (account-wide membership list) and `Org binding` (this key's bound organization) checks.
+
+### Raw API requests (`api`)
+
+#### `testsprite api <path>`
+
+Send an authenticated request to any CLI API endpoint and print the JSON response — for an endpoint no command wraps yet, or a field a command does not show. Like `gh api`, it reuses everything the other commands use: the active profile and `--endpoint-url`, the API key, retries, `--debug` tracing (secrets redacted), the typed error envelope and the [exit codes](#exit-codes).
+
+```bash
+testsprite api /me
+testsprite api '/tests?projectId=proj_xxxxxxxx' --output json
+testsprite api /runs/run_xxxxxxxx
+testsprite api /schedules --method POST --input schedule.json
+testsprite api /tests/test_xxxxxxxx --method PATCH --data '{"name":"Checkout"}' --dry-run
+```
+
+- `<path>` — a path under the CLI API; a pasted `/api/cli/v1` prefix and a query string are fine. A full URL is refused (exit 5): the request always goes to the configured API host, so the API key is never sent anywhere else. `.`/`..` segments are refused too.
+- `-X, --method <method>` — `GET` (default), `POST`, `PUT`, `PATCH` or `DELETE`. A request body never turns a `GET` into a write on its own: `--data`/`--input` without a write method exits 5.
+- `--data <json>` / `--input <file>` — the JSON request body, inline or from a file of up to 5 MB (one or the other; reading from stdin with `--input -` is not supported).
+- `--idempotency-key <key>` — every write sends an `Idempotency-Key`, auto-minted when omitted and printed to stderr under `--output json`, `--verbose` or `--debug`. Re-running with the same key does not apply the write twice, and the CLI can safely retry it after a network error or a `500`; reusing a key with a different body is refused (exit 6).
+
+The response is printed as JSON in both output modes (a `204` prints nothing). `--dry-run` prints the request that would be sent — method, path, body and idempotency key — without sending it.
 
 ## Configuration
 

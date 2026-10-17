@@ -68,6 +68,52 @@ Global options (--dry-run, --output, --profile, --endpoint-url, --request-timeou
 "
 `;
 
+exports[`--help snapshots > api 1`] = `
+"Usage: testsprite api [options] <path>
+
+Make an authenticated request to the TestSprite CLI API and print the JSON
+response
+
+Arguments:
+  path                     API path, e.g. /me or /tests?projectId=<id> (the
+                           /api/cli/v1 prefix is optional)
+
+Options:
+  -X, --method <method>    HTTP method: GET, POST, PUT, PATCH or DELETE
+                           (default: "GET")
+  --data <json>            JSON request body (needs --method POST, PUT, PATCH
+                           or DELETE)
+  --input <file>           read the JSON request body from a file (up to 5 MB)
+  --idempotency-key <key>  key for safe retries of a write (1–256 chars).
+                           Auto-generated keys print to stderr in JSON, verbose
+                           or debug mode.
+  -h, --help               display help for command
+
+Global options (--dry-run, --output, --profile, --endpoint-url, --request-timeout, --verbose, --debug):
+  testsprite --help
+
+The request goes to the API host from your profile or --endpoint-url, with your API key.
+Only paths are accepted, never full URLs, so the key cannot be sent to another host.
+It reuses the CLI client: retries, error envelopes and exit codes match every other command.
+
+Examples:
+  testsprite api /me
+  testsprite api '/tests?projectId=<id>' --output json
+  testsprite api /runs/<run-id>
+  testsprite api /schedules --method POST --input schedule.json
+  testsprite api /tests/<test-id> --method PATCH --data '{"name":"Checkout"}' --dry-run
+
+Exit codes:
+  0   success
+  3   auth error — run \`testsprite setup\` to configure credentials
+  4   not found
+  5   invalid arguments, or the server rejected the request (VALIDATION_ERROR)
+  6   conflict, e.g. an idempotency key reused with a different body
+  10  transport/network failure (UNAVAILABLE) — retry the command
+  other codes follow the shared exit-code table (see DOCUMENTATION.md)
+"
+`;
+
 exports[`--help snapshots > auth 1`] = `
 "Usage: testsprite auth [options] [command]
 
@@ -1625,6 +1671,8 @@ Commands:
                                Kiro, Windsurf, Copilot, Codex)
   usage|credits                Show credit balance and plan/entitlement info
                                (proactive pre-flight before a large test run)
+  api [options] <path>         Make an authenticated request to the TestSprite
+                               CLI API and print the JSON response
   doctor                       Diagnose CLI setup: version, Node, profile,
                                endpoint, credentials, connectivity, skill
   completion [shell]           Print a shell completion script (bash|zsh|fish)
